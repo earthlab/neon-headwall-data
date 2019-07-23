@@ -78,6 +78,7 @@ def NEON_create_refl_xarr_from_h5_file(h5file, nid='R10C', nodata=-9999):
     
     #arr = f[nid]['Reflectance']['Reflectance_Data'][:]
     arr = da.from_array(f[nid]['Reflectance']['Reflectance_Data'], chunks=(256,256,256))
+    sf = f[nid]['Reflectance']['Reflectance_Data'].attrs['Scale_Factor']
     
     mapinfo_list = [a.strip() for a in str(crs_mapinfo).split(',')]
     mapinfo = [float(a) for a in mapinfo_list[1:7]]
@@ -89,7 +90,7 @@ def NEON_create_refl_xarr_from_h5_file(h5file, nid='R10C', nodata=-9999):
     xr_cube = xr.DataArray(arr, {'y': y, 'x': x, 'bands': wavelength}, dims=['y', 'x', 'bands'])
     xr_cube_ma = xr_cube.where(xr_cube != -9999)
     
-    return x, y, xr_cube_ma
+    return x, y, xr_cube_ma/sf
     
 def transform_from_latlon(lat, lon):
     lat = np.asarray(lat)
@@ -218,7 +219,7 @@ def extract_from_NEON(hsi, geodf=None):
     u_x = np.unique(val_x)
     ex_neon = example_neon.sel(y=y_n[u_y], x=x_n[u_x])
 
-    full_neon = ex_neon.values.reshape(-1, ex_neon.shape[-1]).T/10000
+    full_neon = ex_neon.values.reshape(-1, ex_neon.shape[-1]).T
     neon_wav = ex_neon.coords['bands'].values
     
     return ex_neon, (neon_wav, full_neon)
