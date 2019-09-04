@@ -223,4 +223,43 @@ def extract_from_NEON(hsi, geodf=None):
     neon_wav = ex_neon.coords['bands'].values
     
     return ex_neon, (neon_wav, full_neon)
+
+def extract_from_NEON_ENVI(hsi, geodf=None):
+    '''Params:
+    hsi: list or tuple
+        must contain (xarray, x coordinates, y coordinates)
+        
+    geom: Shapely geometry
+        geometry for which to perform the extraction
+        
+    Returns: tuple of numpy arrays
+        contains column vectors of the spectra for the provided geometry: VNIR, SWIR, and combined    
+    
+    '''
+    
+    # check to make sure a geometry is provided
+    if geodf is None:
+        raise ValueError('Please provide a valid geometry')
+        
+        
+    # parse the inputs
+    xarr_n, x_n, y_n = hsi
+    
+    # NEON's data is in UTM, hence to to_crs() call
+    ds_neon = xr.Dataset(coords={'y':y_n, 'x':x_n})
+    shapes = [(shape, n) for n, shape in enumerate(geodf.geometry)]
+    ds_neon['aoi'] = rasterize(shapes, ds_neon.coords)
+    ds_neon['aoi'] = ds_neon.aoi + 1
+
+    example_neon = ds_neon.aoi * xarr_n
+    
+    val_y, val_x = np.where(ds_neon.aoi==1)
+    u_y = np.unique(val_y)
+    u_x = np.unique(val_x)
+    ex_neon = example_neon.sel(y=y_n[u_y], x=x_n[u_x])
+
+    full_neon = ex_neon.values.reshape(-1, ex_neon.shape[-1]).T
+    neon_wav = ex_neon.coords['wavelength'].values
+    
+    return ex_neon, (neon_wav, full_neon)
         
