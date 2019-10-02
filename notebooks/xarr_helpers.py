@@ -184,6 +184,78 @@ def extract_from_headwall(vnir, swir, geodf=None):
     
     return ex_vnir, ex_swir, (full_wav, full_ex)
 
+def extract_from_headwall_ENVI(vnir, swir, geodf=None):
+    '''Params:
+    vnir: list or tuple
+        must contain (xarray, x coordinates, y coordinates)
+    
+    swir: list or tuple
+        must contain (xarray, x coordinates, y coordinates)
+        
+    geom: Shapely geometry
+        geometry for which to perform the extraction
+        
+    Returns: tuple of numpy arrays
+        contains column vectors of the spectra for the provided geometry: VNIR, SWIR, and combined    
+    
+    '''
+    
+    # check to make sure a geometry is provided
+    if geodf is None:
+        raise ValueError('Please provide a valid geometry')
+        
+    
+    # parse the inputs
+    xarr_vn, x_vnir, y_vnir = vnir
+    xarr_sw, x_swir, y_swir = swir
+    
+    # create mask datasets for the VNIR and SWIR data separately
+    ds_vnir = xr.Dataset(coords={'y':y_vnir, 'x':x_vnir})
+    shapes = [(shape, n) for n, shape in enumerate(geodf.geometry)]
+    ds_vnir['aoi'] = rasterize(shapes, ds_vnir.coords)
+    ds_vnir['aoi'] = ds_vnir.aoi + 1
+
+    ds_swir = xr.Dataset(coords={'y':y_swir, 'x':x_swir})
+    shapes = [(shape, n) for n, shape in enumerate(geodf.geometry)]
+    ds_swir['aoi'] = rasterize(shapes, ds_swir.coords)
+    ds_swir['aoi'] = ds_swir.aoi + 1
+    
+    # apply the mask to the data cube
+    example_vnir = ds_vnir.aoi * xarr_vn 
+    example_swir = ds_swir.aoi * xarr_sw
+    
+    # get the valid y and x coordinates, then reduce to unique values
+    val_y, val_x = np.where(ds_vnir.aoi==1)
+    u_y = np.unique(val_y)
+    u_x = np.unique(val_x)
+    ex_vnir = example_vnir.sel(y=y_vnir[u_y], x=x_vnir[u_x])
+   
+    
+    val_y, val_x = np.where(ds_swir.aoi==1)
+    u_y = np.unique(val_y)
+    u_x = np.unique(val_x)
+    ex_swir = example_swir.sel(y=y_swir[u_y], x=x_swir[u_x])
+    
+    print(ex_vnir.shape, ex_swir.shape)
+    # shapes may be different....
+    if ex_vnir.shape != ex_swir.shape:
+        warnings.warn('extracted shapes are not equal, shaving some off...')
+        
+        min_shape = min(ex_vnir.shape, ex_swir.shape)
+        ex_swir = ex_swir[:min_shape[0], :min_shape[1], :min_shape[2]]
+        ex_vnir = ex_vnir[:min_shape[0], :min_shape[1], :min_shape[2]]
+        
+    print(ex_vnir.shape, ex_swir.shape)
+    
+    # concatenate the data
+    full_ex = np.vstack((ex_vnir.values.reshape(-1, ex_vnir.shape[-1]).T, ex_swir.values.reshape(-1, ex_swir.shape[-1]).T))
+    
+    
+    # concatenate the wavelength vectors
+    full_wav = np.concatenate((ex_vnir.coords['wavelength'].values, ex_swir.coords['wavelength'].values))
+    full_wav = np.unique(full_wav)
+    
+    return ex_vnir, ex_swir, (full_wav, full_ex)
 
 def extract_from_NEON(hsi, geodf=None):
     '''Params:
