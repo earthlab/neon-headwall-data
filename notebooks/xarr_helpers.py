@@ -184,7 +184,7 @@ def extract_from_headwall(vnir, swir, geodf=None):
     
     return ex_vnir, ex_swir, (full_wav, full_ex)
 
-def extract_from_headwall_ENVI(vnir, swir, geodf=None):
+def extract_from_headwall_ENVI(vnir, swir, geodf=None, w_cutoff=0):
     '''Params:
     vnir: list or tuple
         must contain (xarray, x coordinates, y coordinates)
@@ -194,6 +194,9 @@ def extract_from_headwall_ENVI(vnir, swir, geodf=None):
         
     geom: Shapely geometry
         geometry for which to perform the extraction
+        
+    w_cutoff: float
+        wavelength at which to cut off the VNIR spectra
         
     Returns: tuple of numpy arrays
         contains column vectors of the spectra for the provided geometry: VNIR, SWIR, and combined    
@@ -245,7 +248,11 @@ def extract_from_headwall_ENVI(vnir, swir, geodf=None):
         ex_swir = ex_swir[:min_shape[0], :min_shape[1], :min_shape[2]]
         ex_vnir = ex_vnir[:min_shape[0], :min_shape[1], :min_shape[2]]
         
-    print(ex_vnir.shape, ex_swir.shape)
+    # cut off the VNIR if provided
+    if w_cutoff > 0:
+        b_cutoff = np.where(ex_vnir.coords['wavelength'] <= w_cutoff)[0][-1] + 1 # +1 due to 1 based indexing on band
+        ex_vnir = ex_vnir.sel(band=slice(0, b_cutoff))
+    
     
     # concatenate the data
     full_ex = np.vstack((ex_vnir.values.reshape(-1, ex_vnir.shape[-1]).T, ex_swir.values.reshape(-1, ex_swir.shape[-1]).T))
@@ -335,3 +342,53 @@ def extract_from_NEON_ENVI(hsi, geodf=None):
     
     return ex_neon, (neon_wav, full_neon)
         
+def bin_data(hw_spectra, hw_wavelengths, neon_spectra, neon_wavelengths, res=200):
+
+    # assign inputs
+    full_wav = hw_wavelengths
+    full_ex = hw_spectra
+    
+    neon_wav = neon_wavelengths
+    full_neon_ls = neon_spectra
+    
+    
+    #res = 200
+    neon_std_ls, hw_std_ls = [],[]
+    neon_mean_ls, hw_mean_ls = [],[]
+    band_ranges = []
+    for bc in np.arange(full_wav[0]+res/2, full_wav[-1], res):
+        w_min = bc - res/2
+        w_max = bc + res/2
+        band_ranges.append((w_min, bc, w_max))
+        #print(w_min,bc, w_max)
+
+        # get min bands for headwall
+        h_b_min = np.where(full_wav >= w_min)[0][0] + 1 # +1 due to 1 based indexing on band
+        h_b_max = np.where(full_wav <= w_max)[0][-1] + 1 # +1 due to 1 based indexing on band
+
+        # record std and mean
+        hw_std = np.nanstd(full_ex[h_b_min:h_b_max,:])
+        hw_std_ls.append(hw_std)
+        hw_mean = np.nanmean(full_ex[h_b_min:h_b_max,:])
+        hw_mean_ls.append(hw_mean)
+
+        # get min bands for NEON
+        n_b_min = np.where(neon_wav >= w_min)[0][0] + 1 # +1 due to 1 based indexing on band
+        n_b_max = np.where(neon_wav <= w_max)[0][-1] + 1 # +1 due to 1 based indexing on band
+
+        # record std for each NEON group
+        temp_, temp__ = [],[]
+        for full_neon in full_neon_ls:
+            neon_std = np.nanstd(full_neon[n_b_min:n_b_max,:])
+            temp_.append(neon_std)
+
+            neon_mean = np.nanmean(full_neon[n_b_min:n_b_max,:])
+            temp__.append(neon_mean)
+
+        neon_std_ls.append(temp_)
+        neon_mean_ls.append(temp__)
+        
+    arr_std = np.hstack((np.expand_dims(np.array(hw_std_ls),axis=1), np.array(neon_std_ls)))
+    arr_mean = np.hstack((np.expand_dims(np.array(hw_mean_ls),axis=1), np.array(neon_mean_ls)))
+    
+    return arr_mean, arr_std
