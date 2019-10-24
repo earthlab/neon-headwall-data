@@ -244,9 +244,11 @@ def extract_from_headwall_ENVI(vnir, swir, geodf=None, w_cutoff=0):
     if ex_vnir.shape != ex_swir.shape:
         warnings.warn('extracted shapes are not equal, shaving some off...')
         
-        min_shape = min(ex_vnir.shape, ex_swir.shape)
+        min_shape = (min(ex_vnir.shape[0], ex_swir.shape[0]), min(ex_vnir.shape[1], ex_swir.shape[1]), min(ex_vnir.shape[2], ex_swir.shape[2]))
         ex_swir = ex_swir[:min_shape[0], :min_shape[1], :min_shape[2]]
         ex_vnir = ex_vnir[:min_shape[0], :min_shape[1], :min_shape[2]]
+        
+        print(ex_vnir.shape, ex_swir.shape, min_shape)
         
     # cut off the VNIR if provided
     if w_cutoff > 0:
