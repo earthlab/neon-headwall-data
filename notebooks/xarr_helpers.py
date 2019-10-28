@@ -394,3 +394,68 @@ def bin_data(hw_spectra, hw_wavelengths, neon_spectra, neon_wavelengths, res=200
     arr_mean = np.hstack((np.expand_dims(np.array(hw_mean_ls),axis=1), np.array(neon_mean_ls)))
     
     return arr_mean, arr_std
+
+def bin_data_groups(hw_spectra, hw_wavelengths, neon_spectra, neon_wavelengths, res=200):
+
+    # assign inputs
+    full_wav = hw_wavelengths
+    full_ex_ls = hw_spectra   # list
+    
+    neon_wav = neon_wavelengths
+    full_neon_ls = neon_spectra  # list
+    
+    
+    #res = 200
+    neon_std_ls, hw_std_ls = [],[]
+    neon_mean_ls, hw_mean_ls = [],[]
+    band_ranges = []
+    for bc in np.arange(full_wav[0]+res/2, full_wav[-1], res):
+        w_min = bc - res/2
+        w_max = bc + res/2
+        band_ranges.append((w_min, bc, w_max))
+        #print(w_min,bc, w_max)
+
+        # get min bands for headwall
+        h_b_min = np.where(full_wav >= w_min)[0][0] + 1 # +1 due to 1 based indexing on band
+        h_b_max = np.where(full_wav <= w_max)[0][-1] + 1 # +1 due to 1 based indexing on band
+
+        # record std and mean for each HW group
+        hw_temp_, hw_temp__ = [],[]
+        for full_ex in full_ex_ls:
+            
+            if len(full_ex.shape) < 2:
+                full_ex = full_ex[:, np.newaxis]
+                
+            hw_std = np.nanstd(full_ex[h_b_min:h_b_max,:])
+            hw_temp_.append(hw_std)
+            
+            hw_mean = np.nanmean(full_ex[h_b_min:h_b_max,:])
+            hw_temp__.append(hw_mean)
+            
+        hw_std_ls.append(hw_temp_)            
+        hw_mean_ls.append(hw_temp__)
+
+        # get min bands for NEON
+        n_b_min = np.where(neon_wav >= w_min)[0][0] + 1 # +1 due to 1 based indexing on band
+        n_b_max = np.where(neon_wav <= w_max)[0][-1] + 1 # +1 due to 1 based indexing on band
+
+        # record std for each NEON group
+        temp_, temp__ = [],[]
+        for full_neon in full_neon_ls:
+            
+            if len(full_neon.shape) < 2:
+                full_neon = full_neon[:, np.newaxis]
+                
+            neon_std = np.nanstd(full_neon[n_b_min:n_b_max,:])
+            temp_.append(neon_std)
+
+            neon_mean = np.nanmean(full_neon[n_b_min:n_b_max,:])
+            temp__.append(neon_mean)
+
+        neon_std_ls.append(temp_)
+        neon_mean_ls.append(temp__)
+        
+    arr_std = np.hstack((np.expand_dims(np.array(hw_std_ls),axis=1).squeeze(), np.array(neon_std_ls)))
+    arr_mean = np.hstack((np.expand_dims(np.array(hw_mean_ls),axis=1).squeeze(), np.array(neon_mean_ls)))
+    
+    return arr_mean, arr_std
