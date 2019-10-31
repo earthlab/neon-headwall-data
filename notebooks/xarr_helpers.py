@@ -14,6 +14,7 @@ import dask.array as da
 from rasterio import features
 from affine import Affine
 import warnings
+from shapely.geometry.point import Point
 
 # enable fiona KML
 import fiona
@@ -295,7 +296,7 @@ def extract_from_NEON(hsi, geodf=None):
 
     example_neon = ds_neon.aoi * xarr_n
     
-    val_y, val_x = np.where(ds_neon.aoi==1)
+    val_y, val_x = np.where(ds_neon.aoi>=1)
     u_y = np.unique(val_y)
     u_x = np.unique(val_x)
     ex_neon = example_neon.sel(y=y_n[u_y], x=x_n[u_x])
